@@ -1,0 +1,30 @@
+{
+  "name": "relay-mock-directive-plugin",
+  "version": "1.0.0",
+  "description": "Relay implementation of GAP-10 @mock directive",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "peerDependencies": {
+    "relay-runtime": ">=14.0.0"
+  },
+  "devDependencies": {
+    "@types/relay-runtime": "^20.1.1",
+    "relay-runtime": "^18.2.0",
+    "typescript": "~5.9.3"
+  }
+}
