@@ -17,7 +17,7 @@ export function createMockNetwork(options) {
         }
         const strippedQuery = stripMockedFields(queryText);
         if (strippedQuery === null) {
-            const response = buildMockOnlyResponse(mockDirectives, request, mockRegistry);
+            const response = mergeMockData({ data: {} }, mockDirectives, request, mockRegistry);
             return Promise.resolve(response);
         }
         const modifiedRequest = {
@@ -55,64 +55,4 @@ function resolveOperationMock(directive, request, mockRegistry) {
         response.extensions = mockVariant.extensions;
     }
     return Promise.resolve(response);
-}
-function buildMockOnlyResponse(mockDirectives, request, mockRegistry) {
-    const data = {};
-    const errors = [];
-    for (const directive of mockDirectives) {
-        const resolved = resolveFieldMock(directive, request, mockRegistry);
-        setNestedValue(data, directive.path, directive.alias || directive.fieldName, resolved.data);
-        if (resolved.errors) {
-            errors.push(...resolved.errors);
-        }
-    }
-    const response = { data };
-    if (errors.length > 0) {
-        response.errors = errors;
-    }
-    return response;
-}
-function resolveFieldMock(directive, request, mockRegistry) {
-    const { args, fragmentName } = directive;
-    if (args.value !== undefined) {
-        return { data: coerceInlineValue(args.value) };
-    }
-    if (!args.variant) {
-        return { data: null };
-    }
-    const lookupName = fragmentName || request.name;
-    const mockFile = mockRegistry[lookupName];
-    if (!mockFile) {
-        console.warn(`[relay-mock] No mock file found for "${lookupName}"`);
-        return { data: null };
-    }
-    const mockVariant = mockFile[args.variant];
-    if (!mockVariant) {
-        console.warn(`[relay-mock] No variant "${args.variant}" in mock file for "${lookupName}"`);
-        return { data: null };
-    }
-    return { data: mockVariant.data, errors: mockVariant.errors };
-}
-function coerceInlineValue(value) {
-    if (value === "null")
-        return null;
-    if (value === "true")
-        return true;
-    if (value === "false")
-        return false;
-    const num = Number(value);
-    if (!isNaN(num) && value.trim() !== "")
-        return num;
-    return value;
-}
-function setNestedValue(obj, path, fieldName, value) {
-    const parts = path.split(".").filter(Boolean);
-    let current = obj;
-    for (const part of parts) {
-        if (!(part in current) || typeof current[part] !== "object" || current[part] === null) {
-            current[part] = {};
-        }
-        current = current[part];
-    }
-    current[fieldName] = value;
 }

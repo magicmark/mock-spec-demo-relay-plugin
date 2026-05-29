@@ -16,7 +16,3 @@ export interface MockDirectiveArgs {
     variant?: string;
     value?: string;
 }
-export interface MockNetworkOptions {
-    mockRegistry: MockRegistry;
-    fetchFn: (request: unknown, variables: unknown) => Promise<unknown>;
-}
