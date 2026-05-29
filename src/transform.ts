@@ -11,6 +11,7 @@ export interface ParsedMockDirective {
 
 export function parseMockDirectives(queryText: string): ParsedMockDirective[] {
   const directives: ParsedMockDirective[] = [];
+  const fragmentSpreadPaths: Record<string, string> = {};
   const lines = queryText.split("\n");
 
   let currentPath: string[] = [];
@@ -28,12 +29,16 @@ export function parseMockDirectives(queryText: string): ParsedMockDirective[] {
     if (fragmentMatch) {
       currentFragmentName = fragmentMatch[1];
       fragmentDepth = braceDepth;
+      currentPath = [];
+      depthStack = [];
     }
 
     const operationMatch = trimmed.match(/^(query|mutation|subscription)\s+(\w+)/);
     if (operationMatch) {
       currentFragmentName = undefined;
       fragmentDepth = -1;
+      currentPath = [];
+      depthStack = [];
     }
 
     const operationMockMatch = trimmed.match(
@@ -67,6 +72,11 @@ export function parseMockDirectives(queryText: string): ParsedMockDirective[] {
       }
     }
 
+    const spreadMatch = trimmed.match(/^\.\.\.(\w+)/);
+    if (spreadMatch && !currentFragmentName) {
+      fragmentSpreadPaths[spreadMatch[1]] = currentPath.join(".");
+    }
+
     const fieldMockMatch = trimmed.match(
       /^(?:(\w+)\s*:\s*)?(\w+)(?:\([^)]*\))?\s*@mock\(([^)]+)\)/
     );
@@ -98,6 +108,15 @@ export function parseMockDirectives(queryText: string): ParsedMockDirective[] {
 
     if (openBraces > 0) {
       braceDepth += openBraces;
+    }
+  }
+
+  for (const directive of directives) {
+    if (directive.fragmentName && directive.fragmentName in fragmentSpreadPaths) {
+      const spreadPath = fragmentSpreadPaths[directive.fragmentName];
+      if (spreadPath) {
+        directive.path = directive.path ? `${spreadPath}.${directive.path}` : spreadPath;
+      }
     }
   }
 
@@ -168,8 +187,32 @@ export function stripMockedFields(queryText: string): string | null {
     return null;
   }
 
-  const cleaned = cleanupEmptySelections(result.join("\n"));
+  let cleaned = cleanupEmptySelections(result.join("\n"));
+  cleaned = removeEmptyFragments(cleaned);
   return removeUnusedVariables(cleaned);
+}
+
+function removeEmptyFragments(query: string): string {
+  const fragmentDefRegex = /^fragment\s+(\w+)\s+on\s+\w+\s*$/gm;
+  const emptyFragments: string[] = [];
+  let match;
+
+  while ((match = fragmentDefRegex.exec(query)) !== null) {
+    const afterDef = query.slice(match.index + match[0].length).trimStart();
+    if (!afterDef.startsWith("{")) {
+      emptyFragments.push(match[1]);
+    }
+  }
+
+  if (emptyFragments.length === 0) return query;
+
+  let result = query;
+  for (const name of emptyFragments) {
+    result = result.replace(new RegExp(`^fragment\\s+${name}\\s+on\\s+\\w+\\s*$`, "gm"), "");
+    result = result.replace(new RegExp(`^\\s*\\.\\.\\.${name}\\s*$`, "gm"), "");
+  }
+
+  return result.replace(/\n{3,}/g, "\n\n").trim();
 }
 
 function cleanupEmptySelections(query: string): string {
